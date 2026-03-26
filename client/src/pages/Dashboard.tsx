@@ -85,7 +85,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ${portfolioQuery.data?.totalBalance ? (portfolioQuery.data.totalBalance / 100).toFixed(2) : "10,000.00"}
+                ${portfolioQuery.data?.currentBalance ? (portfolioQuery.data.currentBalance / 100).toFixed(2) : "10,000.00"}
               </div>
               <p className="text-xs text-slate-400 mt-1">Virtual balance</p>
             </CardContent>
@@ -151,7 +151,7 @@ export default function Dashboard() {
                   </div>
                 ) : signalsQuery.data && signalsQuery.data.length > 0 ? (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {signalsQuery.data.slice(0, 10).map((signal: any) => (
+                    {signalsQuery.data && signalsQuery.data.slice(0, 10).map((signal: any) => (
                       <div key={signal.id} className="flex justify-between items-center p-3 bg-slate-700 rounded-lg hover:bg-slate-600 transition">
                         <div>
                           <p className="font-medium text-white">{signal.ticker}</p>
@@ -191,7 +191,7 @@ export default function Dashboard() {
                   </div>
                 ) : predictionsQuery.data && predictionsQuery.data.length > 0 ? (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {predictionsQuery.data.slice(0, 10).map((pred: any) => (
+                    {predictionsQuery.data && predictionsQuery.data.slice(0, 10).map((pred: any) => (
                       <div key={pred.id} className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                         <div>
                           <p className="font-medium text-white">{pred.ticker}</p>
@@ -199,7 +199,7 @@ export default function Dashboard() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-white">${(pred.currentPrice / 100).toFixed(2)}</p>
-                          <p className="text-xs text-slate-400">AI: {(pred.predictions.consensus * 100).toFixed(1)}%</p>
+                          <p className="text-xs text-slate-400">AI: {pred.predictions && pred.predictions.consensus ? (pred.predictions.consensus * 100).toFixed(1) : 'N/A'}%</p>
                         </div>
                       </div>
                     ))}
@@ -225,7 +225,7 @@ export default function Dashboard() {
                   </div>
                 ) : tradesQuery.data && tradesQuery.data.length > 0 ? (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {tradesQuery.data.map((trade: any) => (
+                    {tradesQuery.data && tradesQuery.data.map((trade: any) => (
                       <div key={trade.id} className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                         <div>
                           <p className="font-medium text-white">{trade.ticker}</p>
@@ -270,7 +270,7 @@ export default function Dashboard() {
                   </div>
                 ) : trendsQuery.data && trendsQuery.data.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {trendsQuery.data.slice(0, 15).map((trend: string, idx: number) => (
+                    {trendsQuery.data && trendsQuery.data.slice(0, 15).map((trend: string, idx: number) => (
                       <span key={idx} className="px-3 py-1 bg-blue-900 text-blue-200 rounded-full text-sm">
                         {trend}
                       </span>

@@ -69,7 +69,8 @@ export class CreneClient {
         },
       });
 
-      return response.data.predictions || [];
+      const predictions = response.data?.predictions || response.data || [];
+      return Array.isArray(predictions) ? predictions.filter((p: any) => p && p.id && p.ticker) : [];
     } catch (error) {
       console.error("Error fetching Crene predictions:", error);
       throw error;
@@ -145,22 +146,22 @@ export class CreneClient {
   /**
    * Calculate AI consensus from multiple models
    */
-  calculateConsensus(predictions: {
-    gpt4o: number;
-    claude: number;
-    gemini: number;
-    grok: number;
-  }): number {
-    const values = Object.values(predictions).filter((v) => typeof v === "number");
+  calculateConsensus(predictions: any): number {
+    if (!predictions || typeof predictions !== "object") return 0.5;
+    const values = Object.values(predictions).filter((v) => typeof v === "number" && v >= 0 && v <= 1) as number[];
     if (values.length === 0) return 0.5;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    return values.reduce((a: number, b: number) => a + b, 0) / values.length;
   }
 
   /**
    * Detect trading signals based on AI vs Market divergence
    */
   detectSignals(predictions: CrenePrediction[], threshold: number = 0.1): CreneSignal[] {
+    if (!predictions || !Array.isArray(predictions)) {
+      return [];
+    }
     return predictions
+      .filter((pred) => pred && pred.predictions && pred.ticker && pred.id)
       .map((pred) => {
         const consensus = this.calculateConsensus(pred.predictions);
         const marketPrice = pred.currentPrice / 100; // Convert to decimal
