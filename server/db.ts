@@ -89,4 +89,60 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Trading queries
+export async function getKalshiMarkets(limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(kalshiMarkets).limit(limit);
+}
+
+export async function getMarketById(marketId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(kalshiMarkets).where(eq(kalshiMarkets.id, marketId)).limit(1);
+  return result[0];
+}
+
+export async function getUserTradingOrders(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tradingOrders).where(eq(tradingOrders.userId, userId));
+}
+
+export async function getRecentNewsEvents(limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(newsEvents).orderBy(desc(newsEvents.fetchedAt)).limit(limit);
+}
+
+export async function getAiDecisionsByUser(userId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(aiDecisions).where(eq(aiDecisions.userId, userId)).orderBy(desc(aiDecisions.createdAt)).limit(limit);
+}
+
+export async function getPortfolioSnapshot(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(portfolioSnapshots).where(eq(portfolioSnapshots.userId, userId)).orderBy(desc(portfolioSnapshots.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function getTradingSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(tradingSettings).where(eq(tradingSettings.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function createTradingSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const id = nanoid();
+  await db.insert(tradingSettings).values({ id, userId });
+  return { id, userId };
+}
+
+import { desc } from "drizzle-orm";
+import { kalshiMarkets, tradingOrders, newsEvents, aiDecisions, portfolioSnapshots, tradingSettings } from "../drizzle/schema";
+import { nanoid } from "nanoid";

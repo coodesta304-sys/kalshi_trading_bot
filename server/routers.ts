@@ -1,10 +1,9 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -17,12 +16,126 @@ export const appRouter = router({
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  // Trading routes with real data from RapidAPI
+  trading: router({
+    // Get live market predictions from Crene API
+    getPredictions: publicProcedure.query(async () => {
+      try {
+        const { getCreneClient } = await import("./services/creneClient");
+        const client = getCreneClient();
+        return await client.getPredictions(50);
+      } catch (error) {
+        console.error("Error fetching predictions:", error);
+        return [];
+      }
+    }),
+
+    // Get trading signals (AI vs Market divergence)
+    getSignals: publicProcedure.query(async () => {
+      try {
+        const { getCreneClient } = await import("./services/creneClient");
+        const client = getCreneClient();
+        const predictions = await client.getPredictions(50);
+        return client.detectSignals(predictions, 0.1);
+      } catch (error) {
+        console.error("Error fetching signals:", error);
+        return [];
+      }
+    }),
+
+    // Get user's paper trading portfolio
+    getPortfolio: protectedProcedure.query(async ({ ctx }) => {
+      const { getPaperTradingEngine } = await import("./services/paperTradingEngine");
+      const engine = getPaperTradingEngine();
+      return engine.getPortfolioSummary(ctx.user.id.toString());
+    }),
+
+    // Get user's paper trades
+    getTrades: protectedProcedure.query(async ({ ctx }) => {
+      const { getPaperTradingEngine } = await import("./services/paperTradingEngine");
+      const engine = getPaperTradingEngine();
+      return engine.getUserTrades(ctx.user.id.toString());
+    }),
+
+    // Get AI trading decisions
+    getDecisions: protectedProcedure.query(async ({ ctx }) => {
+      const { getAiDecisionsByUser } = await import("./db");
+      return getAiDecisionsByUser(ctx.user.id, 50);
+    }),
+  }),
+
+  // News and sentiment routes
+  news: router({
+    // Get tweets and sentiment for a market
+    getMarketSentiment: publicProcedure
+      .input((val: any) => {
+        if (typeof val !== "object" || val === null) throw new Error("Invalid input");
+        if (typeof val.ticker !== "string") throw new Error("ticker must be string");
+        return val as { ticker: string };
+      })
+      .query(async ({ input }) => {
+        try {
+          const { getTwitterClient } = await import("./services/twitterClient");
+          const client = getTwitterClient();
+          const tweets = await client.searchMarketTweets(input.ticker, 20);
+          const sentiment = client.aggregateSentiment(tweets);
+          return { tweets, sentiment };
+        } catch (error) {
+          console.error("Error fetching sentiment:", error);
+          return { tweets: [], sentiment: null };
+        }
+      }),
+
+    // Get trending topics
+    getTrends: publicProcedure.query(async () => {
+      try {
+        const { getTwitterClient } = await import("./services/twitterClient");
+        const client = getTwitterClient();
+        return await client.getTrends();
+      } catch (error) {
+        console.error("Error fetching trends:", error);
+        return [];
+      }
+    }),
+  }),
+
+  // Background jobs control
+  jobs: router({
+    // Start background jobs
+    start: protectedProcedure.mutation(async ({ ctx }) => {
+      // Only allow admin users
+      if (ctx.user.role !== "admin") {
+        throw new Error("Unauthorized");
+      }
+
+      const { getBackgroundJobsService } = await import("./services/backgroundJobs");
+      const service = getBackgroundJobsService();
+      service.startAll();
+
+      return { success: true, message: "Background jobs started" };
+    }),
+
+    // Stop background jobs
+    stop: protectedProcedure.mutation(async ({ ctx }) => {
+      // Only allow admin users
+      if (ctx.user.role !== "admin") {
+        throw new Error("Unauthorized");
+      }
+
+      const { getBackgroundJobsService } = await import("./services/backgroundJobs");
+      const service = getBackgroundJobsService();
+      service.stopAll();
+
+      return { success: true, message: "Background jobs stopped" };
+    }),
+
+    // Get background jobs status
+    getStatus: protectedProcedure.query(async ({ ctx }) => {
+      const { getBackgroundJobsService } = await import("./services/backgroundJobs");
+      const service = getBackgroundJobsService();
+      return service.getStatus();
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
