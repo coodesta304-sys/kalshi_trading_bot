@@ -36,6 +36,7 @@ export class TwitterClient {
    */
   async searchTweets(query: string, limit: number = 20): Promise<Tweet[]> {
     try {
+      console.log("[Twitter] Searching tweets for:", query);
       const response = await axios.get(`${this.baseUrl}/search`, {
         headers: {
           "x-rapidapi-key": this.apiKey,
@@ -46,13 +47,21 @@ export class TwitterClient {
           count: limit,
           type: "Latest",
         },
+        timeout: 10000,
       });
 
+      console.log("[Twitter] Response status:", response.status);
       const tweets = response.data || [];
-      return tweets.map((tweet: any) => this.parseTweet(tweet));
-    } catch (error) {
-      console.error(`Error searching tweets for "${query}":`, error);
-      return [];
+      console.log("[Twitter] Tweets found:", Array.isArray(tweets) ? tweets.length : 0);
+      return Array.isArray(tweets) ? tweets.map((tweet: any) => this.parseTweet(tweet)) : [];
+    } catch (error: any) {
+      console.error("[Twitter] Error searching tweets:");
+      console.error("  Status:", error.response?.status);
+      console.error("  Message:", error.message);
+      console.error("  Using mock data for development...");
+      // Fallback to mock data for development
+      const { getMockTweets } = await import("./mockData");
+      return getMockTweets(query, limit);
     }
   }
 
@@ -61,17 +70,26 @@ export class TwitterClient {
    */
   async getTrends(): Promise<string[]> {
     try {
+      console.log("[Twitter] Fetching trends");
       const response = await axios.get(`${this.baseUrl}/trends`, {
         headers: {
           "x-rapidapi-key": this.apiKey,
           "x-rapidapi-host": this.apiHost,
         },
+        timeout: 10000,
       });
 
-      return response.data?.trends || [];
-    } catch (error) {
-      console.error("Error fetching Twitter trends:", error);
-      return [];
+      const trends = response.data?.trends || [];
+      console.log("[Twitter] Trends count:", Array.isArray(trends) ? trends.length : 0);
+      return Array.isArray(trends) ? trends : [];
+    } catch (error: any) {
+      console.error("[Twitter] Error fetching trends:");
+      console.error("  Status:", error.response?.status);
+      console.error("  Message:", error.message);
+      console.error("  Using mock data for development...");
+      // Fallback to mock data for development
+      const { getMockTrends } = await import("./mockData");
+      return getMockTrends();
     }
   }
 

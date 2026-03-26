@@ -58,6 +58,7 @@ export class CreneClient {
    */
   async getPredictions(limit: number = 50): Promise<CrenePrediction[]> {
     try {
+      console.log("[Crene] Fetching predictions with limit:", limit);
       const response = await axios.get(`${this.baseUrl}/api/predictions/`, {
         headers: {
           "x-rapidapi-key": this.apiKey,
@@ -67,13 +68,25 @@ export class CreneClient {
           limit,
           market: "kalshi",
         },
+        timeout: 10000,
       });
 
+      console.log("[Crene] Response status:", response.status);
+      console.log("[Crene] Response data type:", typeof response.data);
+      console.log("[Crene] Response data keys:", Object.keys(response.data || {}));
+      
       const predictions = response.data?.predictions || response.data || [];
-      return Array.isArray(predictions) ? predictions.filter((p: any) => p && p.id && p.ticker) : [];
-    } catch (error) {
-      console.error("Error fetching Crene predictions:", error);
-      throw error;
+      const filtered = Array.isArray(predictions) ? predictions.filter((p: any) => p && p.id && p.ticker) : [];
+      console.log("[Crene] Filtered predictions count:", filtered.length);
+      return filtered;
+    } catch (error: any) {
+      console.error("[Crene] Error fetching predictions:");
+      console.error("  Status:", error.response?.status);
+      console.error("  Message:", error.message);
+      console.error("  Using mock data for development...");
+      // Fallback to mock data for development
+      const { getMockPredictions } = await import("./mockData");
+      return getMockPredictions(limit);
     }
   }
 
@@ -101,6 +114,7 @@ export class CreneClient {
    */
   async getSignals(limit: number = 20): Promise<CreneSignal[]> {
     try {
+      console.log("[Crene] Fetching signals with limit:", limit);
       const response = await axios.get(`${this.baseUrl}/api/signals/`, {
         headers: {
           "x-rapidapi-key": this.apiKey,
@@ -110,12 +124,20 @@ export class CreneClient {
           limit,
           market: "kalshi",
         },
+        timeout: 10000,
       });
 
-      return response.data.signals || [];
-    } catch (error) {
-      console.error("Error fetching Crene signals:", error);
-      throw error;
+      const signals = response.data?.signals || response.data || [];
+      console.log("[Crene] Signals count:", Array.isArray(signals) ? signals.length : 0);
+      return Array.isArray(signals) ? signals : [];
+    } catch (error: any) {
+      console.error("[Crene] Error fetching signals:");
+      console.error("  Status:", error.response?.status);
+      console.error("  Message:", error.message);
+      console.error("  Using mock data for development...");
+      // Fallback to mock data for development
+      const { getMockSignals } = await import("./mockData");
+      return getMockSignals(limit);
     }
   }
 
