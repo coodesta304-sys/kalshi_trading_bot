@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { startJobScheduler } from "../jobs/marketDataFetcher";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -59,6 +60,10 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // Start background jobs for market data fetching
+    if (process.env.NODE_ENV === "development" || process.env.ENABLE_JOBS === "true") {
+      startJobScheduler();
+    }
   });
 }
 

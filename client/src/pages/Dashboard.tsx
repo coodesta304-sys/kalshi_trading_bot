@@ -5,9 +5,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import { TrendingUpIcon, AlertCircle, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 
 export default function Dashboard() {
   const { user, isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Fetch real data from RapidAPI
@@ -73,6 +75,15 @@ export default function Dashboard() {
             </Button>
             <Button variant="outline" size="sm" onClick={() => predictionsQuery.refetch()}>
               Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
+              Settings
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/reports")}>
+              Reports
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/notifications")}>
+              Notifications
             </Button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
+import type { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -96,6 +97,43 @@ export const appRouter = router({
         console.error("Error fetching trends:", error);
         return [];
       }
+    }),
+  }),
+
+  // Notifications
+  notifications: router({
+    // Get user notifications
+    getNotifications: protectedProcedure
+      .input((val: any) => {
+        if (typeof val !== "object" || val === null) return { unreadOnly: false };
+        return { unreadOnly: val.unreadOnly === true };
+      })
+      .query(async ({ ctx, input }) => {
+        const { getNotificationService } = await import("./services/notificationService");
+        const service = getNotificationService();
+        return service.getNotifications(ctx.user.id, input.unreadOnly);
+      }),
+
+    // Mark notification as read
+    markAsRead: protectedProcedure
+      .input((val: any) => {
+        if (typeof val !== "object" || val === null) throw new Error("Invalid input");
+        if (typeof val.notificationId !== "string") throw new Error("notificationId must be string");
+        return val as { notificationId: string };
+      })
+      .mutation(async ({ ctx, input }) => {
+        const { getNotificationService } = await import("./services/notificationService");
+        const service = getNotificationService();
+        service.markAsRead(ctx.user.id, input.notificationId);
+        return { success: true };
+      }),
+
+    // Clear all notifications
+    clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+      const { getNotificationService } = await import("./services/notificationService");
+      const service = getNotificationService();
+      service.clearNotifications(ctx.user.id);
+      return { success: true };
     }),
   }),
 
