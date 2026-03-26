@@ -81,19 +81,15 @@ export class BackgroundJobsService {
     const job = setInterval(async () => {
       try {
         // Fetch markets
-        const markets = await this.polymarketClient.getMarkets(50);
+        const markets = await this.polymarketClient.getMarkets();
         console.log(`[Polymarket] Fetched ${markets.length} markets`);
 
         // Fetch market insights
-        const insights = await this.polymarketClient.getMarketInsights(20);
+        const insights = await this.polymarketClient.getMarketInsights();
         console.log(`[Polymarket] Fetched ${insights.length} market insights`);
 
-        // Fetch social signals
-        const socialSignals = await this.polymarketClient.getSocialSignals(20);
-        console.log(`[Polymarket] Fetched ${socialSignals.length} social signals`);
-
         // Store in database (implementation depends on your DB schema)
-        // await storePolymarketData(markets, insights, socialSignals);
+        // await storePolymarketData(markets, insights);
       } catch (error) {
         console.error("[Polymarket] Error syncing data:", error);
       }
@@ -103,27 +99,36 @@ export class BackgroundJobsService {
   }
 
   /**
-   * Sync Twitter sentiment data
+   * Sync Twitter data
    */
   private startTwitterSync(): void {
     console.log("[BackgroundJobs] Starting Twitter sync job...");
+
+    const queries = [
+      "Polymarket prediction",
+      "Kalshi trading",
+      "prediction market",
+      "market forecast",
+      "trading signals",
+    ];
 
     const job = setInterval(async () => {
       try {
         const twitterClient = getTwitterClient();
 
-        // Search for market-related tweets
-        const queries = ["bitcoin prediction", "ethereum forecast", "kalshi market", "crypto trading"];
-
         for (const query of queries) {
-          const tweets = await twitterClient.searchTweets(query, 10);
-          console.log(`[Twitter] Fetched ${tweets.length} tweets for "${query}"`);
+          try {
+            const tweets = await twitterClient.searchTweets(query, 10);
+            console.log(`[Twitter] Fetched ${tweets.length} tweets for "${query}"`);
 
-          // Store in database (implementation depends on your DB schema)
-          // await storeTwitterData(tweets, query);
+            // Store tweets in database if needed
+            // await storeTweets(tweets);
+          } catch (error) {
+            console.error(`[Twitter] Error fetching tweets for "${query}":`, error);
+          }
         }
       } catch (error) {
-        console.error("[Twitter] Error fetching tweets:", error);
+        console.error("[Twitter] Error syncing data:", error);
       }
     }, this.config.twitterSync.interval);
 
@@ -131,44 +136,40 @@ export class BackgroundJobsService {
   }
 
   /**
-   * Make trading decisions based on latest data
+   * Make trading decisions based on market insights
    */
   private startDecisionMaking(): void {
     console.log("[BackgroundJobs] Starting decision making job...");
 
     const job = setInterval(async () => {
       try {
-        const twitterClient = getTwitterClient();
         const decisionEngine = getTradingDecisionEngine();
+        const twitterClient = getTwitterClient();
 
-        // Get latest market insights
-        const insights = await this.polymarketClient.getMarketInsights(10);
-        const socialSignals = await this.polymarketClient.getSocialSignals(10);
+        // Get market insights
+        const insights = await this.polymarketClient.getMarketInsights();
 
-        console.log(`[DecisionMaking] Processing ${insights.length} market insights`);
-
-        // For each insight, make a decision
         for (const insight of insights.slice(0, 5)) {
           // Limit to top 5 insights
           try {
-            // Get related tweets
-            const tweets = await twitterClient.searchTweets(insight.ticker, 10);
+            // Get related tweets for sentiment analysis
+            const tweets = await twitterClient.searchTweets(insight.market_question, 10);
 
-            // Make decision
+            // Make decision based on insight and sentiment
             const decision = decisionEngine.makeDecision(
-              insight.id,
-              insight.ticker,
+              insight.market_id,
+              insight.market_question,
               {
-                id: insight.id,
-                ticker: insight.ticker,
-                title: insight.title,
+                id: insight.market_id,
+                ticker: insight.market_question.substring(0, 20), // Use question as ticker
+                title: insight.market_question,
                 currentPrice: 0.5,
                 predictions: {
-                  gpt4o: insight.liquidityScore,
-                  claude: insight.trendScore,
-                  gemini: (insight.liquidityScore + insight.trendScore) / 2,
-                  grok: (insight.liquidityScore + insight.trendScore) / 2,
-                  consensus: (insight.liquidityScore + insight.trendScore) / 2,
+                  gpt4o: insight.confidence,
+                  claude: insight.confidence,
+                  gemini: insight.confidence,
+                  grok: insight.confidence,
+                  consensus: insight.confidence,
                 },
               },
               tweets,
@@ -177,13 +178,17 @@ export class BackgroundJobsService {
             );
 
             console.log(
-              `[DecisionMaking] Decision for ${insight.ticker}: ${decision.decision} (${decision.confidence}% confidence)`
+              `[DecisionMaking] Decision for ${insight.market_question}: ${decision.decision} (${decision.confidence}% confidence)`
             );
 
-            // Store decision in database
-            // await storeDecision(decision);
+            // Store decision in database if needed
+            // const db = getDb();
+            // await db.insert(aiDecisions).values({ ... });
           } catch (error) {
-            console.error(`[DecisionMaking] Error processing insight for ${insight.ticker}:`, error);
+            console.error(
+              `[DecisionMaking] Error processing insight for ${insight.market_question}:`,
+              error
+            );
           }
         }
       } catch (error) {
@@ -204,47 +209,28 @@ export class BackgroundJobsService {
       try {
         const paperTradingEngine = getPaperTradingEngine();
 
-        // This would update portfolio metrics for all users
-        // In a real implementation, you'd iterate through all users
-        console.log("[PortfolioUpdate] Portfolio metrics updated");
+        // Update portfolio metrics (using default user)
+        const portfolio = paperTradingEngine.getPortfolio('default-user');
+        console.log(`[Portfolio] Updated portfolio - Balance: $${portfolio.currentBalance}`);
 
-        // Update in database
-        // await updatePortfolioMetrics();
+        // Store portfolio snapshot in database if needed
+        // const db = getDb();
+        // await db.insert(portfolioSnapshots).values({ ... });
       } catch (error) {
-        console.error("[PortfolioUpdate] Error updating portfolio:", error);
+        console.error("[Portfolio] Error updating portfolio:", error);
       }
     }, this.config.portfolioUpdate.interval);
 
     this.jobs.set("portfolioUpdate", job);
-  }
-
-  /**
-   * Get job status
-   */
-  getStatus(): {
-    running: boolean;
-    jobs: string[];
-    config: any;
-  } {
-    return {
-      running: this.jobs.size > 0,
-      jobs: Array.from(this.jobs.keys()),
-      config: this.config,
-    };
   }
 }
 
 // Singleton instance
 let backgroundJobsService: BackgroundJobsService | null = null;
 
-export function getBackgroundJobsService(config?: {
-  polymarketSync?: JobConfig;
-  twitterSync?: JobConfig;
-  decisionMaking?: JobConfig;
-  portfolioUpdate?: JobConfig;
-}): BackgroundJobsService {
+export function getBackgroundJobsService(): BackgroundJobsService {
   if (!backgroundJobsService) {
-    backgroundJobsService = new BackgroundJobsService(config);
+    backgroundJobsService = new BackgroundJobsService();
   }
   return backgroundJobsService;
 }

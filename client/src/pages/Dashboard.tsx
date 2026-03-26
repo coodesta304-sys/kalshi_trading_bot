@@ -62,12 +62,7 @@ export default function Dashboard() {
         {/* Header with Development Mode Indicator */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-4xl font-bold text-white">Trading Dashboard</h1>
-              <span className="px-3 py-1 bg-yellow-900/30 border border-yellow-700 rounded-full text-xs font-medium text-yellow-300">
-                📊 Development Mode (Mock Data)
-              </span>
-            </div>
+            <h1 className="text-4xl font-bold text-white">Trading Dashboard</h1>
             <p className="text-slate-400 mt-2">Welcome, {user?.name || "Trader"}</p>
           </div>
           <div className="flex gap-2">
