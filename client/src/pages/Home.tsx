@@ -4,13 +4,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { TrendingUpIcon, BarChart3Icon, BrainIcon, ShieldIcon } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
 
+  // Use useEffect to navigate when authenticated, not in render phase
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Don't render anything while redirecting
   if (isAuthenticated) {
-    navigate("/dashboard");
     return null;
   }
 
