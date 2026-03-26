@@ -75,10 +75,35 @@ export class CreneClient {
       console.log("[Crene] Response data type:", typeof response.data);
       console.log("[Crene] Response data keys:", Object.keys(response.data || {}));
       
+      if (response.data?.predictions) {
+        console.log("[Crene] Predictions array length:", response.data.predictions.length);
+      }
+      
       const predictions = response.data?.predictions || response.data || [];
-      const filtered = Array.isArray(predictions) ? predictions.filter((p: any) => p && p.id && p.ticker) : [];
-      console.log("[Crene] Filtered predictions count:", filtered.length);
-      return filtered;
+      
+      const mapped = Array.isArray(predictions) ? predictions.map((p: any) => ({
+        id: p.question_id || p.id,
+        ticker: p.ticker || p.category || "UNKNOWN",
+        title: p.question || p.title || "Unknown",
+        description: p.description || "",
+        currentPrice: p.current_price || p.currentPrice || 0.5,
+        market: "kalshi",
+        domain: p.category || "general",
+        createdAt: p.generated_at || new Date().toISOString(),
+        expiresAt: p.expires_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        predictions: {
+          gpt4o: p.gpt4o_prediction || 0.5,
+          claude: p.claude_prediction || 0.5,
+          gemini: p.gemini_prediction || 0.5,
+          grok: p.grok_prediction || 0.5,
+          consensus: p.consensus || 0.5,
+        },
+        volume24h: p.volume_24h || 0,
+        liquidity: p.liquidity || 0.5,
+      })) : [];
+      
+      console.log("[Crene] Mapped predictions count:", mapped.length);
+      return mapped;
     } catch (error: any) {
       console.error("[Crene] Error fetching predictions:");
       console.error("  Status:", error.response?.status);
