@@ -3,7 +3,7 @@
  * Handles periodic data fetching and processing
  */
 
-import { getCreneClient } from "./creneClient";
+import { PolymarketClient } from "./polymarketClient";
 import { getTwitterClient } from "./twitterClient";
 import { getTradingDecisionEngine } from "./tradingDecisionEngine";
 import { getPaperTradingEngine } from "./paperTradingEngine";
@@ -16,21 +16,23 @@ interface JobConfig {
 
 export class BackgroundJobsService {
   private jobs: Map<string, NodeJS.Timeout> = new Map();
+  private polymarketClient: PolymarketClient;
   private config: {
-    creneSync: JobConfig;
+    polymarketSync: JobConfig;
     twitterSync: JobConfig;
     decisionMaking: JobConfig;
     portfolioUpdate: JobConfig;
   };
 
   constructor(config?: {
-    creneSync?: JobConfig;
+    polymarketSync?: JobConfig;
     twitterSync?: JobConfig;
     decisionMaking?: JobConfig;
     portfolioUpdate?: JobConfig;
   }) {
+    this.polymarketClient = new PolymarketClient();
     this.config = {
-      creneSync: config?.creneSync || { interval: 60000, enabled: true }, // 1 minute
+      polymarketSync: config?.polymarketSync || { interval: 60000, enabled: true }, // 1 minute
       twitterSync: config?.twitterSync || { interval: 300000, enabled: true }, // 5 minutes
       decisionMaking: config?.decisionMaking || { interval: 120000, enabled: true }, // 2 minutes
       portfolioUpdate: config?.portfolioUpdate || { interval: 30000, enabled: true }, // 30 seconds
@@ -43,8 +45,8 @@ export class BackgroundJobsService {
   startAll(): void {
     console.log("[BackgroundJobs] Starting all jobs...");
 
-    if (this.config.creneSync.enabled) {
-      this.startCreneSync();
+    if (this.config.polymarketSync.enabled) {
+      this.startPolymarketSync();
     }
 
     if (this.config.twitterSync.enabled) {
@@ -71,26 +73,33 @@ export class BackgroundJobsService {
   }
 
   /**
-   * Sync Crene market data
+   * Sync Polymarket data
    */
-  private startCreneSync(): void {
-    console.log("[BackgroundJobs] Starting Crene sync job...");
+  private startPolymarketSync(): void {
+    console.log("[BackgroundJobs] Starting Polymarket sync job...");
 
     const job = setInterval(async () => {
       try {
-        const creneClient = getCreneClient();
-        const predictions = await creneClient.getPredictions(50);
+        // Fetch markets
+        const markets = await this.polymarketClient.getMarkets(50);
+        console.log(`[Polymarket] Fetched ${markets.length} markets`);
 
-        console.log(`[Crene] Fetched ${predictions.length} predictions`);
+        // Fetch market insights
+        const insights = await this.polymarketClient.getMarketInsights(20);
+        console.log(`[Polymarket] Fetched ${insights.length} market insights`);
+
+        // Fetch social signals
+        const socialSignals = await this.polymarketClient.getSocialSignals(20);
+        console.log(`[Polymarket] Fetched ${socialSignals.length} social signals`);
 
         // Store in database (implementation depends on your DB schema)
-        // await storeCreneData(predictions);
+        // await storePolymarketData(markets, insights, socialSignals);
       } catch (error) {
-        console.error("[Crene] Error fetching predictions:", error);
+        console.error("[Polymarket] Error syncing data:", error);
       }
-    }, this.config.creneSync.interval);
+    }, this.config.polymarketSync.interval);
 
-    this.jobs.set("creneSync", job);
+    this.jobs.set("polymarketSync", job);
   }
 
   /**
@@ -129,41 +138,52 @@ export class BackgroundJobsService {
 
     const job = setInterval(async () => {
       try {
-        const creneClient = getCreneClient();
         const twitterClient = getTwitterClient();
         const decisionEngine = getTradingDecisionEngine();
 
-        // Get latest predictions
-        const predictions = await creneClient.getPredictions(20);
-        const signals = creneClient.detectSignals(predictions);
+        // Get latest market insights
+        const insights = await this.polymarketClient.getMarketInsights(10);
+        const socialSignals = await this.polymarketClient.getSocialSignals(10);
 
-        console.log(`[DecisionMaking] Detected ${signals.length} trading signals`);
+        console.log(`[DecisionMaking] Processing ${insights.length} market insights`);
 
-        // For each signal, make a decision
-        for (const signal of signals.slice(0, 5)) {
-          // Limit to top 5 signals
+        // For each insight, make a decision
+        for (const insight of insights.slice(0, 5)) {
+          // Limit to top 5 insights
           try {
             // Get related tweets
-            const tweets = await twitterClient.searchMarketTweets(signal.ticker, 10);
+            const tweets = await twitterClient.searchTweets(insight.ticker, 10);
 
             // Make decision
             const decision = decisionEngine.makeDecision(
-              signal.id,
-              signal.ticker,
-              signal,
+              insight.id,
+              insight.ticker,
+              {
+                id: insight.id,
+                ticker: insight.ticker,
+                title: insight.title,
+                currentPrice: 0.5,
+                predictions: {
+                  gpt4o: insight.liquidityScore,
+                  claude: insight.trendScore,
+                  gemini: (insight.liquidityScore + insight.trendScore) / 2,
+                  grok: (insight.liquidityScore + insight.trendScore) / 2,
+                  consensus: (insight.liquidityScore + insight.trendScore) / 2,
+                },
+              },
               tweets,
               10000, // Virtual balance
               1 // Risk 1% per trade
             );
 
             console.log(
-              `[DecisionMaking] Decision for ${signal.ticker}: ${decision.decision} (${decision.confidence}% confidence)`
+              `[DecisionMaking] Decision for ${insight.ticker}: ${decision.decision} (${decision.confidence}% confidence)`
             );
 
             // Store decision in database
             // await storeDecision(decision);
           } catch (error) {
-            console.error(`[DecisionMaking] Error processing signal for ${signal.ticker}:`, error);
+            console.error(`[DecisionMaking] Error processing insight for ${insight.ticker}:`, error);
           }
         }
       } catch (error) {
@@ -218,7 +238,7 @@ export class BackgroundJobsService {
 let backgroundJobsService: BackgroundJobsService | null = null;
 
 export function getBackgroundJobsService(config?: {
-  creneSync?: JobConfig;
+  polymarketSync?: JobConfig;
   twitterSync?: JobConfig;
   decisionMaking?: JobConfig;
   portfolioUpdate?: JobConfig;

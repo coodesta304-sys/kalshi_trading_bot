@@ -3,7 +3,7 @@
  * Makes buy/sell decisions based on AI predictions, market sentiment, and risk management
  */
 
-import { CreneSignal } from "./creneClient";
+import { MarketInsight } from "./polymarketClient";
 import { Tweet } from "./twitterClient";
 
 export interface TradingDecision {
@@ -28,22 +28,18 @@ export interface TradingDecision {
 
 export class TradingDecisionEngine {
   private minConfidenceThreshold: number = 60; // 60% confidence minimum
-  private maxPositionSize: number = 5; // 5% of balance per trade
-  private riskRewardRatio: number = 1.5; // Risk 1, Reward 1.5
+  private maxPositionSize: number = 5; // Max 5% of account per trade
+  private stopLossPercentage: number = 2; // 2% stop loss
+  private takeProfitPercentage: number = 5; // 5% take profit
+  private riskRewardRatio: number = 2.5; // Risk/Reward ratio
 
-  constructor(config?: {
-    minConfidenceThreshold?: number;
-    maxPositionSize?: number;
-    riskRewardRatio?: number;
-  }) {
-    if (config?.minConfidenceThreshold) {
-      this.minConfidenceThreshold = config.minConfidenceThreshold;
-    }
-    if (config?.maxPositionSize) {
-      this.maxPositionSize = config.maxPositionSize;
-    }
-    if (config?.riskRewardRatio) {
-      this.riskRewardRatio = config.riskRewardRatio;
+  constructor(config?: any) {
+    if (config) {
+      if (config.minConfidenceThreshold) this.minConfidenceThreshold = config.minConfidenceThreshold;
+      if (config.maxPositionSize) this.maxPositionSize = config.maxPositionSize;
+      if (config.stopLossPercentage) this.stopLossPercentage = config.stopLossPercentage;
+      if (config.takeProfitPercentage) this.takeProfitPercentage = config.takeProfitPercentage;
+      if (config.riskRewardRatio) this.riskRewardRatio = config.riskRewardRatio;
     }
   }
 
@@ -53,13 +49,13 @@ export class TradingDecisionEngine {
   makeDecision(
     marketId: string,
     ticker: string,
-    signal: CreneSignal,
+    insight: any,
     tweets: Tweet[],
     accountBalance: number,
     riskPercentage: number = 1
   ): TradingDecision {
     // Analyze AI signal
-    const aiSignalScore = this.analyzeAISignal(signal);
+    const aiSignalScore = this.analyzeAISignal(insight);
 
     // Analyze sentiment
     const sentimentScore = this.analyzeSentiment(tweets);
@@ -84,20 +80,23 @@ export class TradingDecisionEngine {
       decision = "hold";
     }
 
+    // Default entry price
+    const entryPrice = 0.5;
+
     // Calculate position size
     const positionSize = this.calculatePositionSize(
       accountBalance,
-      signal.marketPrice,
+      entryPrice,
       riskPercentage
     );
 
     // Calculate stop loss and take profit
-    const stopLoss = signal.marketPrice * (1 - riskPercentage / 100);
-    const takeProfit = signal.marketPrice * (1 + riskPercentage * this.riskRewardRatio / 100);
+    const stopLoss = entryPrice * (1 - riskPercentage / 100);
+    const takeProfit = entryPrice * (1 + riskPercentage * this.riskRewardRatio / 100);
 
     // Build reasoning
     const reasoning = this.buildReasoning(
-      signal,
+      insight,
       tweets,
       aiSignalScore,
       sentimentScore,
@@ -106,9 +105,9 @@ export class TradingDecisionEngine {
 
     // Build factors
     const factors = {
-      aiSignal: `AI Prediction: ${(signal.aiPrediction * 100).toFixed(1)}% vs Market: ${(signal.marketPrice * 100).toFixed(1)}%`,
+      aiSignal: `Market Insight Signal: ${insight.signal || "NEUTRAL"}`,
       sentiment: `Sentiment Score: ${sentimentScore.toFixed(2)} from ${tweets.length} tweets`,
-      technicalAnalysis: `Divergence: ${(signal.divergence * 100).toFixed(2)}%`,
+      technicalAnalysis: `Liquidity: ${((insight.liquidityScore || 0.5) * 100).toFixed(1)}%`,
       riskAssessment: `Position Size: ${positionSize} units, Risk/Reward: 1:${this.riskRewardRatio}`,
     };
 
@@ -118,7 +117,7 @@ export class TradingDecisionEngine {
       ticker,
       decision,
       confidence: Math.round(confidence),
-      entryPrice: signal.marketPrice,
+      entryPrice,
       stopLoss,
       takeProfit,
       positionSize,
@@ -131,15 +130,17 @@ export class TradingDecisionEngine {
   /**
    * Analyze AI signal strength
    */
-  private analyzeAISignal(signal: CreneSignal): number {
-    // Convert AI prediction and market price to a score
+  private analyzeAISignal(insight: any): number {
+    // Convert market insight to a score
     // Positive score = bullish, Negative score = bearish
 
-    const divergence = signal.aiPrediction - signal.marketPrice;
-    const confidence = signal.confidence / 100; // Normalize to 0-1
+    const liquidityScore = insight.liquidityScore || 0.5;
+    const trendScore = insight.trendScore || 0.5;
+    const confidence = insight.confidence || 0.5;
 
     // Score ranges from -1 to 1
-    let score = divergence * 2; // Scale divergence
+    let score = (liquidityScore + trendScore) / 2 - 0.5; // Center around 0
+    score *= 2; // Scale to -1 to 1
 
     // Apply confidence weighting
     score *= confidence;
@@ -193,7 +194,7 @@ export class TradingDecisionEngine {
    * Build detailed reasoning for the decision
    */
   private buildReasoning(
-    signal: CreneSignal,
+    insight: any,
     tweets: Tweet[],
     aiScore: number,
     sentimentScore: number,
@@ -203,9 +204,9 @@ export class TradingDecisionEngine {
 
     // AI Signal reasoning
     if (aiScore > 0.3) {
-      parts.push(`AI models are bullish (${(aiScore * 100).toFixed(0)}% confidence)`);
+      parts.push(`AI signal is bullish (${(aiScore * 100).toFixed(1)})`);
     } else if (aiScore < -0.3) {
-      parts.push(`AI models are bearish (${(Math.abs(aiScore) * 100).toFixed(0)}% confidence)`);
+      parts.push(`AI signal is bearish (${(aiScore * 100).toFixed(1)})`);
     }
 
     // Sentiment reasoning
@@ -216,9 +217,9 @@ export class TradingDecisionEngine {
     }
 
     // Market divergence reasoning
-    if (signal.divergence > 0.15) {
+    if (insight.liquidityScore > 0.65) {
       parts.push(
-        `Significant divergence detected: AI ${(signal.aiPrediction * 100).toFixed(1)}% vs Market ${(signal.marketPrice * 100).toFixed(1)}%`
+        `High liquidity score: ${(insight.liquidityScore * 100).toFixed(1)}%`
       );
     }
 
@@ -237,65 +238,32 @@ export class TradingDecisionEngine {
   /**
    * Validate decision against risk parameters
    */
-  validateDecision(decision: TradingDecision, accountBalance: number): {
-    valid: boolean;
-    reason?: string;
-  } {
-    // Check confidence
+  private validateDecision(decision: TradingDecision): boolean {
+    // Check confidence threshold
     if (decision.confidence < this.minConfidenceThreshold && decision.decision !== "hold") {
-      return {
-        valid: false,
-        reason: `Confidence ${decision.confidence}% below threshold ${this.minConfidenceThreshold}%`,
-      };
+      return false;
     }
 
     // Check position size
-    const positionValue = decision.positionSize * decision.entryPrice;
-    const maxPositionValue = (accountBalance * this.maxPositionSize) / 100;
-
-    if (positionValue > maxPositionValue) {
-      return {
-        valid: false,
-        reason: `Position size $${positionValue} exceeds max $${maxPositionValue}`,
-      };
+    if (decision.positionSize < 1) {
+      return false;
     }
 
-    // Check risk/reward ratio
-    const riskAmount = decision.entryPrice - decision.stopLoss;
-    const rewardAmount = decision.takeProfit - decision.entryPrice;
-
-    if (rewardAmount < riskAmount * this.riskRewardRatio) {
-      return {
-        valid: false,
-        reason: `Risk/Reward ratio below threshold`,
-      };
+    // Check stop loss and take profit
+    if (decision.stopLoss >= decision.entryPrice || decision.takeProfit <= decision.entryPrice) {
+      return false;
     }
 
-    return { valid: true };
-  }
-
-  /**
-   * Get decision summary for display
-   */
-  getDecisionSummary(decision: TradingDecision): string {
-    const action = decision.decision.toUpperCase();
-    const confidence = decision.confidence;
-    const ticker = decision.ticker;
-
-    return `${action} ${ticker} with ${confidence}% confidence`;
+    return true;
   }
 }
 
 // Singleton instance
-let tradingDecisionEngine: TradingDecisionEngine | null = null;
+let instance: TradingDecisionEngine | null = null;
 
-export function getTradingDecisionEngine(config?: {
-  minConfidenceThreshold?: number;
-  maxPositionSize?: number;
-  riskRewardRatio?: number;
-}): TradingDecisionEngine {
-  if (!tradingDecisionEngine) {
-    tradingDecisionEngine = new TradingDecisionEngine(config);
+export function getTradingDecisionEngine(config?: Partial<TradingDecisionEngine>): TradingDecisionEngine {
+  if (!instance) {
+    instance = new TradingDecisionEngine(config);
   }
-  return tradingDecisionEngine;
+  return instance;
 }

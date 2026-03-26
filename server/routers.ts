@@ -17,29 +17,42 @@ export const appRouter = router({
     }),
   }),
 
-  // Trading routes with real data from RapidAPI
+  // Trading routes with real data from Polymarket Analytics
   trading: router({
-    // Get live market predictions from Crene API
+    // Get market predictions
     getPredictions: publicProcedure.query(async () => {
       try {
-        const { getCreneClient } = await import("./services/creneClient");
-        const client = getCreneClient();
-        return await client.getPredictions(50);
+        const { PolymarketClient } = await import("./services/polymarketClient");
+        const client = new PolymarketClient();
+        const markets = await client.getMarkets(50);
+        return markets;
       } catch (error) {
         console.error("Error fetching predictions:", error);
         return [];
       }
     }),
 
-    // Get trading signals (AI vs Market divergence)
+    // Get trading signals (Market Insights)
     getSignals: publicProcedure.query(async () => {
       try {
-        const { getCreneClient } = await import("./services/creneClient");
-        const client = getCreneClient();
-        const predictions = await client.getPredictions(50);
-        return client.detectSignals(predictions, 0.1);
+        const { PolymarketClient } = await import("./services/polymarketClient");
+        const client = new PolymarketClient();
+        const insights = await client.getMarketInsights(20);
+        return insights.filter((i) => i.signal !== "NEUTRAL");
       } catch (error) {
         console.error("Error fetching signals:", error);
+        return [];
+      }
+    }),
+
+    // Get social signals
+    getSocialSignals: publicProcedure.query(async () => {
+      try {
+        const { PolymarketClient } = await import("./services/polymarketClient");
+        const client = new PolymarketClient();
+        return await client.getSocialSignals(20);
+      } catch (error) {
+        console.error("Error fetching social signals:", error);
         return [];
       }
     }),

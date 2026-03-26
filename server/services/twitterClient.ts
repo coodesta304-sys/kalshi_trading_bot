@@ -60,8 +60,7 @@ export class TwitterClient {
       console.error("  Message:", error.message);
       console.error("  Using mock data for development...");
       // Fallback to mock data for development
-      const { getMockTweets } = await import("./mockData");
-      return getMockTweets(query, limit);
+      return this.getMockTweets(query, limit);
     }
   }
 
@@ -88,8 +87,7 @@ export class TwitterClient {
       console.error("  Message:", error.message);
       console.error("  Using mock data for development...");
       // Fallback to mock data for development
-      const { getMockTrends } = await import("./mockData");
-      return getMockTrends();
+      return this.getMockTrends();
     }
   }
 
@@ -225,6 +223,63 @@ export class TwitterClient {
     );
 
     return uniqueTweets.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, limit);
+  }
+
+  /**
+   * Get mock tweets for development
+   */
+  private getMockTweets(query: string, limit: number): Tweet[] {
+    const mockTweets: Tweet[] = [
+      {
+        id: "1",
+        text: "Bitcoin bullish signals everywhere! 🚀 #crypto #trading",
+        author: "trader_joe",
+        createdAt: new Date().toISOString(),
+        likes: 1200,
+        retweets: 450,
+        sentiment: "positive",
+        relevanceScore: 0.9,
+      },
+      {
+        id: "2",
+        text: "Market crash incoming. Fed raising rates again. Sell now! #warning",
+        author: "bear_market",
+        createdAt: new Date().toISOString(),
+        likes: 800,
+        retweets: 320,
+        sentiment: "negative",
+        relevanceScore: 0.8,
+      },
+      {
+        id: "3",
+        text: "Polymarket predictions looking interesting today. Mixed signals.",
+        author: "market_analyst",
+        createdAt: new Date().toISOString(),
+        likes: 500,
+        retweets: 200,
+        sentiment: "neutral",
+        relevanceScore: 0.7,
+      },
+    ];
+    return mockTweets.slice(0, limit);
+  }
+
+  /**
+   * Get mock trends for development
+   */
+  private getMockTrends(): string[] {
+    return [
+      "#Bitcoin",
+      "#Ethereum",
+      "#FedDecision",
+      "#Polymarket",
+      "#CryptoMarket",
+      "#TradingSignals",
+      "#MarketAnalysis",
+      "#Bullish",
+      "#Bearish",
+      "#Kalshi",
+    ];
   }
 
   /**
